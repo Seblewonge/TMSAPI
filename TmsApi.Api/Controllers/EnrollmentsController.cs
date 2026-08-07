@@ -8,7 +8,7 @@ using TmsApi.Application.DTOs.Enrollment;
 namespace TmsApi.Api.Controllers;
 
 [ApiController]
-[Route("api/courses/{courseId:int}/enrollments")]
+[Route("api/v{version:apiVersion}/courses/{courseId:int}/enrollments")]
 // [Tags("Enrollments")]
 // [Produces("application/json")]
 // [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]

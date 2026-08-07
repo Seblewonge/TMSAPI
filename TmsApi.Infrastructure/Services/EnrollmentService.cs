@@ -14,8 +14,8 @@ public class EnrollmentService(TmsDbContext context, ILogger<EnrollmentService> 
     context.Enrollments
     .AsNoTracking()
     .Where(e => e.Id == id && e.CourseId == courseId)
-    .Select(e => new EnrollmentResponseDto(e.Id, e.CourseId, e.
-    StudentId, e.EnrolledAt))
+    .Select(e => new EnrollmentResponseDto(e.Id, e.CourseId,e.Course.Title, e.
+    StudentId, e.Student.Name, e.Status, e.EnrolledAt))
     .FirstOrDefaultAsync(ct);
     public async Task<EnrollmentResponseDto> CreateAsync(int courseId,
     EnrollStudentRequest request, CancellationToken ct)
@@ -48,9 +48,12 @@ public class EnrollmentService(TmsDbContext context, ILogger<EnrollmentService> 
             .Select(e => new EnrollmentResponseDto
             (
                  e.Id,
+                 e.CourseId,
+                 e.Course.Title,
                  e.StudentId,
-                e.CourseId,
-                e.EnrolledAt
+                 e.Student.Name,
+                 e.Status,
+                 e.EnrolledAt
             ))
             .ToListAsync(ct);
     }

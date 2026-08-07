@@ -2,6 +2,8 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TmsApi.Infrastructure.Persistence;
+using Microsoft.AspNetCore.RateLimiting;
+using MediatR;
 namespace TmsApi.Api.Controllers.V2;
 
 [ApiController]
@@ -61,4 +63,12 @@ enroll = "/api/v2/enrollments"
 }
 });
 }
-}
+// [HttpGet("search")]
+// [EnableRateLimiting("search")]
+// public async Task<IActionResult> SearchCourses(
+// [FromQuery] string? term, CancellationToken ct)
+// {
+// var results = await mediator.Send(new SearchCoursesQuery(term), ct);
+// return Ok(results);
+// }
+ }
