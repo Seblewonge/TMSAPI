@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 //using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TmsApi.Domain.Entities;
-
+using TmsApi.Application.Interfaces;
 namespace TmsApi.Infrastructure.Persistence;
-public class TmsDbContext(DbContextOptions<TmsDbContext> options) : DbContext(options)
+public class TmsDbContext(DbContextOptions<TmsDbContext> options) : DbContext(options),IApplicationDbContext
 {
       public DbSet<Student> Students => Set<Student>();
       public DbSet<Course> Courses => Set<Course>();

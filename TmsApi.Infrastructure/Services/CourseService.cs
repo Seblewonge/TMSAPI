@@ -5,6 +5,7 @@ using TmsApi.Application.Interfaces;
 using TmsApi.Domain.Entities;
 using TmsApi.Application.DTOs.Course;
 using TmsApi.Application.DTOs.Paged;
+using TmsApi.Application.Courses.Commands;
 namespace TmsApi.Infrastructure.Services;
 
 public class CourseService(
@@ -153,5 +154,34 @@ public async Task<PagedResponse<CourseResponseDto>> GetCoursesAsync(
         Page = request.Page,
         PageSize = request.PageSize
     };
+}
+public async Task<List<Course>> GetAllAsync(
+    CancellationToken ct)
+{
+    return await context.Courses
+        .Include(c => c.Enrollments)
+        .AsNoTracking()
+        .ToListAsync(ct);
+}
+public async Task UpdateAsync(
+    UpdateCourseCommand command,
+    CancellationToken ct)
+{
+    var course = await context.Courses
+        .FirstOrDefaultAsync(
+            c => c.Id == command.Id,
+            ct);
+
+    if (course == null)
+    {
+        throw new Exception(
+            $"Course with id {command.Id} not found");
+    }
+
+    course.Code = command.Code;
+    course.Title = command.Title;
+    course.MaxCapacity = command.MaxCapacity;
+
+    await context.SaveChangesAsync(ct);
 }
 }

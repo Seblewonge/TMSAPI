@@ -3,6 +3,7 @@ using TmsApi.Application.Interfaces;
 using TmsApi.Application.DTOs.Course;
 using TmsApi.Application.DTOs.Paged;
 using TmsApi.Application.DTOs;
+
 namespace TmsApi.Api.Controllers;
 
 
@@ -12,7 +13,9 @@ namespace TmsApi.Api.Controllers;
 [Produces("application/json")]
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
 public class CoursesController(
-    ICourseService courseService,LinkGenerator linkGenerator)
+    ICourseService courseService,
+  ICachedCourseService cachedCourseService,
+LinkGenerator linkGenerator)
     : ControllerBase
 {
 [HttpGet]
@@ -22,7 +25,8 @@ public class CoursesController(
 public async Task<IActionResult> GetCourses(
 [FromQuery] PagedRequest request, CancellationToken ct)
     {
-        var result = await courseService.GetCoursesAsync(request, ct);
+        // var result = await courseService.GetCoursesAsync(request, ct);
+var result = await cachedCourseService.GetAllCoursesAsync(ct);
 return Ok(result);
 }
 
@@ -122,7 +126,9 @@ public async Task<IActionResult> CreateCourse(
 
     var result =
         await courseService.CreateAsync(request, ct);
-
+    
+     await cachedCourseService
+    .InvalidateCourseCacheAsync(ct);
 
     return CreatedAtAction(
         nameof(GetCourseById),
