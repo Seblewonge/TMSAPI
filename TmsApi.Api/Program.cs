@@ -29,9 +29,15 @@ using TmsApi.Infrastructure.Workers;
 using TmsApi.Api.Hubs;
 using TmsApi.Api.Notifications;
 using TmsApi.Application.Notifications;
+using Microsoft.AspNetCore.Antiforgery;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
+
+builder.Services.AddAntiforgery(options =>
+{
+options.HeaderName = "X-XSRF-TOKEN";
+});
 
 // Controllers and services
 builder.Services.AddControllers();
@@ -201,16 +207,16 @@ options.GroupNameFormat = "'v'VVV";
 options.SubstituteApiVersionInUrl = true;
 });
 
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAngular", policy =>
-    {
-        policy
-            .WithOrigins("http://localhost:4200")
-            .AllowAnyHeader()
-            .AllowAnyMethod();
-    });
-});
+// builder.Services.AddCors(options =>
+// {
+//     options.AddPolicy("AllowAngular", policy =>
+//     {
+//         policy
+//             .WithOrigins("http://localhost:4200")
+//             .AllowAnyHeader()
+//             .AllowAnyMethod();
+//     });
+// });
 builder.Services.AddSingleton < ITranscriptStatusStore, InMemoryTranscriptStatusStore > ();
 
 builder.Services.AddSingleton(Channel.CreateBounded<TranscriptRequest>(
@@ -222,7 +228,22 @@ builder.Services.AddHostedService<TranscriptWorker>();
 builder.Services.AddSignalR();
 
 builder.Services.AddSingleton < ITranscriptNotificationService, SignalRTranscriptNotificationService > ();
-
+// Load allowed origins from appsettings.Development.json
+var allowedOrigins = builder.Configuration
+.GetSection("AllowedOrigins").Get<string[]>()
+?? ["http://localhost:4200"];
+// Register the CORS policy in the Dependency Injection container
+builder.Services.AddCors(options =>
+{
+options.AddPolicy("TmsClient", policy =>
+{
+policy.WithOrigins(allowedOrigins)
+.AllowAnyHeader()
+.AllowAnyMethod()
+.AllowCredentials() // Vital for HttpOnly auth cookies in Session 2
+.SetPreflightMaxAge(TimeSpan.FromMinutes(10));
+});
+});
 var app = builder.Build();
 app.MapHub<TmsHub>("/hubs/tms");
 
@@ -259,12 +280,32 @@ app.UseMiddleware<RequestLoggingMiddleware>();
 
 app.UseRouting();
 app.UseRateLimiter();
-app.UseCors("AllowAngular");
+app.UseCors("TmsClient");
+//app.UseCors("AllowAngular");
 app.UseAuthentication();
 
 app.UseAuthorization();
+
+app.Use(async (context, next) =>
+{
+if (context.User.Identity?.IsAuthenticated == true || context.
+Request.Cookies.ContainsKey("tms_auth"))
+{
+var antiforgery = context.RequestServices
+.GetRequiredService<IAntiforgery>();
+var tokens = antiforgery.GetAndStoreTokens(context);
+context.Response.Cookies.Append("XSRF-TOKEN", tokens.RequestToken!,
+new CookieOptions
+{
+HttpOnly = false, // MUST be false so Angular JavaScript can read it!
+Secure = !builder.Environment.IsDevelopment(),
+SameSite = SameSiteMode.Strict
+});
+}
+await next(context);
+});
 app.UseMiddleware<V1DeprecationMiddleware>();
-app.UseCors("AllowAngular");
+//app.UseCors("AllowAngular");
 // Controllers
 app.MapControllers();
 

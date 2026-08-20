@@ -27,5 +27,8 @@ public class EnrollmentConfiguration : IEntityTypeConfiguration<Enrollment>
         builder.HasOne(e => e.Course)
             .WithMany(c => c.Enrollments)
             .HasForeignKey(e => e.CourseId);
+      builder.Property(e => e.Status)
+            .IsRequired()
+            .HasDefaultValue("Pending");
     }
 }
