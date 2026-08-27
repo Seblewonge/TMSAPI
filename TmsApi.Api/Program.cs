@@ -30,6 +30,14 @@ using TmsApi.Api.Hubs;
 using TmsApi.Api.Notifications;
 using TmsApi.Application.Notifications;
 using Microsoft.AspNetCore.Antiforgery;
+using TmsApi.Infrastructure.Identity;
+using Microsoft.AspNetCore.Identity;
+
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using TmsApi.Api.Authorization;
+using Microsoft.AspNetCore.Authorization;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
@@ -149,8 +157,36 @@ builder.Services.AddRateLimiter(options =>
         opt.ReplenishmentPeriod = TimeSpan.FromSeconds(10);
         opt.QueueLimit = 2;
     });
+options.AddFixedWindowLimiter("AuthLimiter", opt =>
+{
+   opt.PermitLimit = 5;
+   opt.Window = TimeSpan.FromMinutes(1);
+   opt.QueueLimit = 0;
+   });
 });
+builder.Services.AddScoped<TokenService>();
 
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme =
+    JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme =
+    JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(
+    Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
+    };
+});
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
 builder.Services.AddScoped<ICourseService, CourseService>();
@@ -173,12 +209,6 @@ builder.Services
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
-// Database
-// builder.Services.AddDbContext<TmsDbContext>(options =>
-//     options.UseNpgsql(
-//         builder.Configuration.GetConnectionString("TmsDatabase"))
-//     .LogTo(Console.WriteLine, LogLevel.Information)
-//     .EnableSensitiveDataLogging());
 builder.Services.AddDbContext<TmsDbContext>(options =>
 options.UseNpgsql(builder.Configuration.GetConnectionString("TmsDatabase")));
 
@@ -207,16 +237,21 @@ options.GroupNameFormat = "'v'VVV";
 options.SubstituteApiVersionInUrl = true;
 });
 
-// builder.Services.AddCors(options =>
-// {
-//     options.AddPolicy("AllowAngular", policy =>
-//     {
-//         policy
-//             .WithOrigins("http://localhost:4200")
-//             .AllowAnyHeader()
-//             .AllowAnyMethod();
-//     });
-// });
+builder.Services.AddIdentityCore<TmsUser>(options =>
+{
+// Enterprise Password Policy
+options.Password.RequiredLength = 12;
+options.Password.RequireUppercase = true;
+options.Password.RequireDigit = true;
+options.Password.RequireNonAlphanumeric = true;
+// Brute-Force Lockout Protection
+options.Lockout.MaxFailedAccessAttempts = 5;
+options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+options.Lockout.AllowedForNewUsers = true;
+})
+.AddRoles<IdentityRole>()
+.AddEntityFrameworkStores<TmsDbContext>();
+
 builder.Services.AddSingleton < ITranscriptStatusStore, InMemoryTranscriptStatusStore > ();
 
 builder.Services.AddSingleton(Channel.CreateBounded<TranscriptRequest>(
@@ -227,7 +262,12 @@ builder.Services.AddSingleton(Channel.CreateBounded<TranscriptRequest>(
 builder.Services.AddHostedService<TranscriptWorker>();
 builder.Services.AddSignalR();
 
-builder.Services.AddSingleton < ITranscriptNotificationService, SignalRTranscriptNotificationService > ();
+builder.Services.AddSingleton<ITranscriptNotificationService, SignalRTranscriptNotificationService>();
+builder.Services.AddAuthorizationBuilder()
+.AddPolicy("CanEditCourse", policy =>
+policy.Requirements.Add(new CourseInstructorRequirement()));
+
+builder.Services.AddSingleton<IAuthorizationHandler, CourseInstructorHandler>();
 // Load allowed origins from appsettings.Development.json
 var allowedOrigins = builder.Configuration
 .GetSection("AllowedOrigins").Get<string[]>()
@@ -288,6 +328,14 @@ app.UseAuthorization();
 
 app.Use(async (context, next) =>
 {
+context.Response.Headers.Append("X-Content-Type-Options",
+"nosniff");
+context.Response.Headers.Append("X-Frame-Options", "DENY");
+context.Response.Headers.Append("Referrer-Policy", "strict-origin when-cross-origin");
+context.Response.Headers.Append(
+"Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self''unsafe-inline';");
+//await next();
+
 if (context.User.Identity?.IsAuthenticated == true || context.
 Request.Cookies.ContainsKey("tms_auth"))
 {

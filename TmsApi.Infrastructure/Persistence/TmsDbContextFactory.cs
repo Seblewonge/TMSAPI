@@ -10,7 +10,7 @@ public class TmsDbContextFactory : IDesignTimeDbContextFactory<TmsDbContext>
         var optionsBuilder = new DbContextOptionsBuilder<TmsDbContext>();
 
         optionsBuilder.UseNpgsql(
-            "Host=localhost;Database=TmsDb;Username=postgres;Password=1234"
+            "Host=localhost;Database=Tms-Db;Username=postgres;Password=1234"
         );
 
         return new TmsDbContext(optionsBuilder.Options);

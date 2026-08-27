@@ -3,137 +3,172 @@ using TmsApi.Application.Interfaces;
 using TmsApi.Application.DTOs.Course;
 using TmsApi.Application.DTOs.Paged;
 using TmsApi.Application.DTOs;
+using Microsoft.AspNetCore.Authorization;
+using TmsApi.Infrastructure.Persistence;
 
-namespace TmsApi.Api.Controllers;
+// namespace TmsApi.Api.Controllers;
 
 
+// [ApiController]
+// [Route("api/courses")]
+// [Tags("Courses")]
+// [Produces("application/json")]
+// [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+// public class CoursesController(
+//     ICourseService courseService,
+//   ICachedCourseService cachedCourseService,
+// LinkGenerator linkGenerator)
+//     : ControllerBase
+// {
+// [HttpGet]
+// [ProducesResponseType(typeof(PagedResponse<CourseResponseDto>), StatusCodes.Status200OK)]
+// [EndpointSummary("List courses with pagination")]
+// [EndpointDescription("Returns a paginated, optionally filtered listof TMS courses. PageSize is capped at 50.")]
+// public async Task<IActionResult> GetCourses(
+// [FromQuery] PagedRequest request, CancellationToken ct)
+//     {
+//         // var result = await courseService.GetCoursesAsync(request, ct);
+// var result = await cachedCourseService.GetAllCoursesAsync(ct);
+// return Ok(result);
+// }
+
+//   [HttpGet("{id:int}", Name = nameof(GetCourseById))]
+// [ProducesResponseType(typeof(CourseDetailDto), StatusCodes.Status200OK)]
+// [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+// [EndpointSummary("Get a course by ID")]
+// [EndpointDescription("Returns course details with HATEOAS links. Returns 404 if the course does not exist.")]
+// public async Task<IActionResult> GetCourseById(
+//     int id,
+//     CancellationToken ct)
+// {
+//     var course = await courseService.GetByIdAsync(id, ct);
+
+//     if (course is null)
+//     {
+//         return NotFound();
+//     }
+
+//     // Generate links
+//     var selfHref = linkGenerator.GetPathByName(
+//         HttpContext,
+//         nameof(GetCourseById),
+//         new { id });
+
+//     var enrollmentsHref = linkGenerator.GetPathByName(
+//         HttpContext,
+//         "ListCourseEnrollments",
+//         new { courseId = id });
+
+//     if (selfHref is null || enrollmentsHref is null)
+//     {
+//         throw new InvalidOperationException("Failed to generate route links.");
+//     }
+
+//     var links = new List<LinkDto>
+//     {
+//         new LinkDto(selfHref, "self", "GET"),
+
+//         new LinkDto(selfHref, "update", "PUT"),
+
+//         new LinkDto(selfHref, "delete", "DELETE"),
+
+//         new LinkDto(enrollmentsHref, "enrollments", "GET")
+//     };
+
+//     if (course.EnrollmentCount < course.MaxCapacity)
+//     {
+//         links.Add(
+//             new LinkDto(
+//                 enrollmentsHref,
+//                 "enroll",
+//                 "POST"));
+//     }
+
+//     var detail = new CourseDetailDto
+//     {
+//         Id = course.Id,
+//         Code = course.Code,
+//         Title = course.Title,
+//         MaxCapacity = course.MaxCapacity,
+//         EnrollmentCount = course.EnrollmentCount,
+//         Links = links
+//     };
+
+//     return Ok(detail);
+// }
+// [HttpPost]
+// [ProducesResponseType(typeof(CourseResponseDto), StatusCodes.Status201Created)]
+// [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.
+// Status400BadRequest)]
+// [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+// [EndpointSummary("Create a new course")]
+// [EndpointDescription("Createsacourse with a uniquecode. Returns409 if the course code already exists.")]
+// public async Task<IActionResult> CreateCourse(
+//     CreateCourseRequest request,
+//     CancellationToken ct)
+// {
+
+//     var exists = await courseService
+//         .CodeExistsAsync(request.Code, ct);
+
+
+//     if (exists)
+//     {
+//         return Conflict(new ProblemDetails
+//         {
+//             Title = "Course code already exists",
+
+//             Detail = 
+//             $"A course with code '{request.Code}' is already registered.",
+
+//             Status = StatusCodes.Status409Conflict
+//         });
+//     }
+
+
+//     var result =
+//         await courseService.CreateAsync(request, ct);
+
+//      await cachedCourseService
+//     .InvalidateCourseCacheAsync(ct);
+
+//     return CreatedAtAction(
+//         nameof(GetCourseById),
+//         new { id = result.Id },
+//         result);
+// }
+
+//     }
+namespace Tms.Api.Controllers;
+[Authorize(Roles = "Instructor,Admin")]
 [ApiController]
-[Route("api/courses")]
-[Tags("Courses")]
-[Produces("application/json")]
-[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
-public class CoursesController(
-    ICourseService courseService,
-  ICachedCourseService cachedCourseService,
-LinkGenerator linkGenerator)
-    : ControllerBase
+[Route("api/[controller]")]
+public class CourseController : ControllerBase
 {
-[HttpGet]
-[ProducesResponseType(typeof(PagedResponse<CourseResponseDto>), StatusCodes.Status200OK)]
-[EndpointSummary("List courses with pagination")]
-[EndpointDescription("Returns a paginated, optionally filtered listof TMS courses. PageSize is capped at 50.")]
-public async Task<IActionResult> GetCourses(
-[FromQuery] PagedRequest request, CancellationToken ct)
+    private readonly TmsDbContext _context;
+    private readonly IAuthorizationService _authorizationService;
+    public CourseController(TmsDbContext context, IAuthorizationService
+    authorizationService)
     {
-        // var result = await courseService.GetCoursesAsync(request, ct);
-var result = await cachedCourseService.GetAllCoursesAsync(ct);
-return Ok(result);
-}
-
-  [HttpGet("{id:int}", Name = nameof(GetCourseById))]
-[ProducesResponseType(typeof(CourseDetailDto), StatusCodes.Status200OK)]
-[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-[EndpointSummary("Get a course by ID")]
-[EndpointDescription("Returns course details with HATEOAS links. Returns 404 if the course does not exist.")]
-public async Task<IActionResult> GetCourseById(
-    int id,
-    CancellationToken ct)
-{
-    var course = await courseService.GetByIdAsync(id, ct);
-
-    if (course is null)
-    {
-        return NotFound();
+            _context = context;
+            _authorizationService = authorizationService;
     }
-
-    // Generate links
-    var selfHref = linkGenerator.GetPathByName(
-        HttpContext,
-        nameof(GetCourseById),
-        new { id });
-
-    var enrollmentsHref = linkGenerator.GetPathByName(
-        HttpContext,
-        "ListCourseEnrollments",
-        new { courseId = id });
-
-    if (selfHref is null || enrollmentsHref is null)
+  
+[HttpPut("{id}")]
+    public async Task<IActionResult> UpdateCourse(int id, [FromBody]
+UpdateCourseDto dto)
     {
-        throw new InvalidOperationException("Failed to generate route links.");
-    }
-
-    var links = new List<LinkDto>
-    {
-        new LinkDto(selfHref, "self", "GET"),
-
-        new LinkDto(selfHref, "update", "PUT"),
-
-        new LinkDto(selfHref, "delete", "DELETE"),
-
-        new LinkDto(enrollmentsHref, "enrollments", "GET")
-    };
-
-    if (course.EnrollmentCount < course.MaxCapacity)
-    {
-        links.Add(
-            new LinkDto(
-                enrollmentsHref,
-                "enroll",
-                "POST"));
-    }
-
-    var detail = new CourseDetailDto
-    {
-        Id = course.Id,
-        Code = course.Code,
-        Title = course.Title,
-        MaxCapacity = course.MaxCapacity,
-        EnrollmentCount = course.EnrollmentCount,
-        Links = links
-    };
-
-    return Ok(detail);
-}
-[HttpPost]
-[ProducesResponseType(typeof(CourseResponseDto), StatusCodes.Status201Created)]
-[ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.
-Status400BadRequest)]
-[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-[EndpointSummary("Create a new course")]
-[EndpointDescription("Createsacourse with a uniquecode. Returns409 if the course code already exists.")]
-public async Task<IActionResult> CreateCourse(
-    CreateCourseRequest request,
-    CancellationToken ct)
-{
-
-    var exists = await courseService
-        .CodeExistsAsync(request.Code, ct);
-
-
-    if (exists)
-    {
-        return Conflict(new ProblemDetails
+        var course = await _context.Courses.FindAsync(id);
+        if (course == null) return NotFound();
+        var authResult = await
+        _authorizationService.AuthorizeAsync(User, course, "CanEditCourse");
+        if (!authResult.Succeeded)
         {
-            Title = "Course code already exists",
-
-            Detail = 
-            $"A course with code '{request.Code}' is already registered.",
-
-            Status = StatusCodes.Status409Conflict
-        });
-    }
-
-
-    var result =
-        await courseService.CreateAsync(request, ct);
-    
-     await cachedCourseService
-    .InvalidateCourseCacheAsync(ct);
-
-    return CreatedAtAction(
-        nameof(GetCourseById),
-        new { id = result.Id },
-        result);
+             return Forbid(); // 403 Forbidden when caller doesn't own the resource
+        }
+       
+        course.Title = dto.Title;
+        await _context.SaveChangesAsync();
+        return NoContent(); }
 }
 
-    }
